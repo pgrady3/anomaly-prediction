@@ -1,7 +1,8 @@
 # nuScenes dev-kit.
 # Code written by Freddy Boulton, 2020.
+#   Adapted by Gerry Chen, 2020
 
-""" Script for running baseline models on a given nuscenes-split. """
+""" Script for viewing camera images from a given data sample. """
 
 import argparse
 import json
@@ -87,7 +88,7 @@ def main(version: str, data_root: str,
     mtp_input_representation = InputRepresentation(static_layer_rasterizer, agent_rasterizer, Rasterizer())
 
     # loop through training tasks
-    for token in dataset[0:20:3]:
+    for token in dataset[40:60:2]:
         fig, axes = plt.subplots(1, 3, figsize=(18, 9))
         print(token)
         instance_token, sample_token = token.split('_')
