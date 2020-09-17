@@ -11,7 +11,7 @@ from nuscenes import NuScenes
 from nuscenes.eval.prediction.config import load_prediction_config
 from nuscenes.eval.prediction.splits import get_prediction_challenge_split
 from nuscenes.prediction import PredictHelper
-from nuscenes.prediction.models.physics import ConstantVelocityHeading, PhysicsOracle
+from forecast.physics import ConstantVelocityHeading, PhysicsOracle
 
 
 def main(version: str, data_root: str,
@@ -21,7 +21,7 @@ def main(version: str, data_root: str,
     :param version: nuScenes data set version.
     :param data_root: Directory where the NuScenes data is stored.
     :param split_name: nuScenes data split name, e.g. train, val, mini_train, etc.
-    :param output_dir: Directory where predictions should be stored.
+    :param output_dir: Directory where output should be stored.
     :param config_name: Name of config file.
     """
 
@@ -48,8 +48,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Perform Inference with baseline models.')
     parser.add_argument('--version', help='nuScenes version number.', default='v1.0-mini')
     parser.add_argument('--data_root', help='Directory storing NuScenes data.', default=os.environ['NUSCENES'])
-    parser.add_argument('--split_name', help='Data split to run inference on.', default='mini_train')
-    parser.add_argument('--output_dir', help='Directory to store output files.', default='predictions')
+    parser.add_argument('--split_name', help='Data split to run inference on.', default='mini_val')
+    parser.add_argument('--output_dir', help='Directory to store output files.', default='output')
     parser.add_argument('--config_name', help='Config file to use.', default='predict_2020_icra.json')
 
     args = parser.parse_args()
