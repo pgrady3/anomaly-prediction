@@ -250,6 +250,31 @@ class FutureAgentBoxesWithFadedHistory(AgentRepresentation):
 
         self.color_mapping = color_mapping
 
+        self.trans_image = None
+
+    def make_trans_img(self):
+        buffer = max([self.meters_ahead, self.meters_behind, self.meters_left, self.meters_right]) * 2
+        image_side_length = int(buffer/self.resolution)
+        central_track_pixels = (image_side_length / 2, image_side_length / 2)
+
+        self.trans_image = np.zeros((image_side_length, image_side_length, 3))
+
+        for x in np.arange(-59.9, 59.9, self.resolution):
+            for y in np.arange(-59.9, 59.9, self.resolution):
+                loc = (self.agent_pos[0] + x, self.agent_pos[1] + y)
+                pix_pos = convert_to_pixel_coords(loc, self.agent_pos,  central_track_pixels, self.resolution)
+                # print('loc, pix pos', loc, pix_pos)
+                self.trans_image[pix_pos[0], pix_pos[1], 0] = loc[0]
+                self.trans_image[pix_pos[0], pix_pos[1], 1] = loc[1]
+
+        rotated_image = cv2.warpAffine(self.trans_image, self.rotation_mat, (self.trans_image.shape[1], self.trans_image.shape[0]))
+
+        row_crop, col_crop = get_crops(self.meters_ahead, self.meters_behind, self.meters_left, self.meters_right, self.resolution, image_side_length)
+
+        self.trans_image = rotated_image[row_crop, col_crop]
+
+        return self.trans_image
+
     def make_representation(self, instance_token: str, sample_token: str, sec_forward=-2, predictions=None) -> np.ndarray:
         """
         Draws agent boxes with faded history into a black background.
@@ -270,17 +295,20 @@ class FutureAgentBoxesWithFadedHistory(AgentRepresentation):
         base_image = np.zeros((image_side_length, image_side_length, 3))
 
         if sec_forward < 0:
-            history = self.helper.get_past_for_sample(sample_token, self.seconds_of_history, in_agent_frame=False, just_xy=False)
+            history = self.helper.get_past_for_sample(sample_token, -sec_forward, in_agent_frame=False, just_xy=False)
         else:
-            history = self.helper.get_future_for_sample(sample_token, self.seconds_of_history, in_agent_frame=False, just_xy=False)
+            history = self.helper.get_future_for_sample(sample_token, sec_forward, in_agent_frame=False, just_xy=False)
 
         history = reverse_history(history)
-
         present_time = self.helper.get_annotations_for_sample(sample_token)
 
         history = add_present_time_to_history(present_time, history)
 
+        if sec_forward >= 0:
+            history = reverse_history(history)
+
         center_agent_annotation = self.helper.get_sample_annotation(instance_token, sample_token)
+        self.agent_pos = center_agent_annotation['translation'][:2]
 
         draw_agent_boxes(center_agent_annotation, central_track_pixels,
                          history, base_image, resolution=self.resolution, get_color=self.color_mapping)
@@ -290,6 +318,7 @@ class FutureAgentBoxesWithFadedHistory(AgentRepresentation):
 
         center_agent_yaw = quaternion_yaw(Quaternion(center_agent_annotation['rotation']))
         rotation_mat = get_rotation_matrix(base_image.shape, center_agent_yaw)
+        self.rotation_mat = rotation_mat
 
         rotated_image = cv2.warpAffine(base_image, rotation_mat, (base_image.shape[1],
                                                                   base_image.shape[0]))
@@ -299,3 +328,25 @@ class FutureAgentBoxesWithFadedHistory(AgentRepresentation):
                                        image_side_length)
 
         return rotated_image[row_crop, col_crop].astype('uint8')
+
+    def convert_from_pixel_coords(self, location):
+        """
+        Convert from pixel coordinates to gloabl coordinates.
+        :param location: Location in global coordinates as (x, y) tuple.
+        :param center_of_image_in_global: Center of the image in global coordinates (x, y) tuple.
+        :param center_of_image_in_pixels: Center of the image in pixel coordinates (row_pixel, column pixel).
+        """
+
+        center_of_image_in_global = self.agent_pos
+        center_of_image_in_pixels = self.center_pixel
+
+        # location[0] += self.
+
+        # Find relative to center location
+        rel_center_pixel = (location[0] - center_of_image_in_pixels[0], location[1] - center_of_image_in_pixels[1])
+        print('center pix', center_of_image_in_pixels)
+        print('rel to center', rel_center_pixel)
+        rel_center_meters = (rel_center_pixel[0] / self.resolution, -rel_center_pixel[1] / self.resolution)  # Flip Y
+        abs_meters = (rel_center_meters[0] + center_of_image_in_global[0], rel_center_meters[1] + center_of_image_in_global[1])
+
+        return abs_meters[0], abs_meters[1]
