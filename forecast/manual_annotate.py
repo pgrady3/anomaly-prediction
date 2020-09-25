@@ -11,6 +11,8 @@ from nuscenes.prediction.input_representation.interface import InputRepresentati
 from nuscenes.prediction.input_representation.combinators import Rasterizer
 from nuscenes.map_expansion.map_api import NuScenesMap
 from physics import ConstantVelocityHeading, PhysicsOracle
+import json
+import os
 
 
 class ManualAnnotate:
@@ -26,6 +28,12 @@ class ManualAnnotate:
         self.map_rasterizer = StaticLayerRasterizer(self.helper, meters_ahead=60, meters_behind=10, meters_left=35, meters_right=35)
         self.agent_rasterizer = FutureAgentBoxesWithFadedHistory(self.helper, meters_ahead=60, meters_behind=10, meters_left=35, meters_right=35)
 
+        self.json_path = 'manual_results.json'
+        self.annotations = []
+        if os.path.exists(self.json_path):
+            with open(self.json_path) as json_file:
+                self.annotations = json.load(json_file)
+
     def draw_map(self, instance, sample, sec_forward, predictions=None):
         img_road = self.map_rasterizer.make_representation(instance, sample)
         img_agents = self.agent_rasterizer.make_representation(instance, sample, sec_forward=sec_forward, predictions=predictions)
@@ -35,6 +43,13 @@ class ManualAnnotate:
         rand_idx = np.random.randint(0, len(self.all_instances))    # Select random sample
         instance, sample = self.mini_train[rand_idx].split("_")
         return instance, sample
+
+    def calc_minFDE1(self):
+        errs = []
+        for d in self.annotations:
+            errs.append(d['err'])
+
+        return np.array(errs).mean()
 
     def run_annotate(self):
         instance, sample = self.select_random_sample()
@@ -54,19 +69,24 @@ class ManualAnnotate:
             if first_click:
                 first_click = False
 
-                click_pos = np.array((event.xdata, event.ydata))
-                click_pos = np.around(click_pos)
-                trans_img = self.agent_rasterizer.make_trans_img()
+                click_pos = np.around(np.array((event.xdata, event.ydata)))
+                trans_img = self.agent_rasterizer.make_trans_img()  # Get mapping from pixels - global meters
                 click_global_pos = trans_img[int(click_pos[1]), int(click_pos[0]), :2]
                 err = np.linalg.norm(click_global_pos - gt_end_pos, 2)
 
-                print('You clicked', click_global_pos)
-                print('Agent pos', gt_end_pos)
-                print('Error dist', err)
+                anno = dict()
+                anno['instance'] = instance
+                anno['sample'] = sample
+                anno['err'] = err
+                self.annotations.append(anno)
+                print('Len {}, Mean FDE1 {:.2f}'.format(len(self.annotations), self.calc_minFDE1()))
 
+                with open(self.json_path, 'w') as outfile:
+                    json.dump(self.annotations, outfile, indent=4)    # Write JSON to file
 
                 img_future = self.draw_map(instance, sample, 6, predictions)
                 axes[1].imshow(img_future)
+                axes[1].set_title('Error {:.2f} m'.format(err))
                 plt.show()
             else:
                 plt.close(fig)

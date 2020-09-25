@@ -1,4 +1,5 @@
 .idea/
+forecast/manual_results.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
