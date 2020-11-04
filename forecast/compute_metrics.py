@@ -37,25 +37,24 @@ def compute_metrics(predictions: List[Dict[str, Any]],
     for metric in config.metrics:
         for agg in metric.aggregators:
             aggregations[metric.name][agg.name] = agg(containers[metric.name])
-    return aggregations
+    return aggregations, containers
 
 
-def main(version: str, data_root: str, submission_path: str,
-         config_name: str = 'predict_2020_icra.json') -> None:
+def main(nusc: NuScenes, submission_path: str, config_name: str = 'predict_2020_icra.json') -> None:
     """
     Computes metrics for a submission stored in submission_path with a given submission_name with the metrics
     specified by the config_name.
-    :param version: nuScenes data set version.
-    :param data_root: Directory storing NuScenes data.
+    :param nusc: nuScenes data set object
     :param submission_path: Directory storing submission.
     :param config_name: Name of config file.
     """
     predictions = json.load(open(submission_path, "r"))
-    nusc = NuScenes(version=version, dataroot=data_root)
     helper = PredictHelper(nusc)
     config = load_prediction_config(helper, config_name)
-    results = compute_metrics(predictions, helper, config)
+    results, resultsfull = compute_metrics(predictions, helper, config)
     json.dump(results, open(submission_path.replace('.json', '_metrics.json'), "w"), indent=2)
+    print('dumping full results...')
+    np.savez(submission_path.replace('.json', '_metricsfull'), **resultsfull)
 
     print('Results from', submission_path)
     print(json.dumps(results, indent=2))
@@ -63,9 +62,12 @@ def main(version: str, data_root: str, submission_path: str,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Perform Inference with baseline models.')
-    parser.add_argument('--version', help='nuScenes version number.', default='v1.0-mini')
+    parser.add_argument('--version', help='nuScenes version number.', default='v1.0-trainval')
     parser.add_argument('--data_root', help='Directory storing NuScenes data.', default=os.environ['NUSCENES'])
     parser.add_argument('--submission_path', help='Path storing the submission file.', default='output/covernet_preds.json')
     parser.add_argument('--config_name', help='Config file to use.', default='predict_2020_icra.json')
     args = parser.parse_args()
-    main(args.version, args.data_root, args.submission_path, args.config_name)
+    nusc = NuScenes(version=args.version, dataroot=args.data_root)
+    main(nusc, args.submission_path, args.config_name)
+    main(nusc, 'output/oracle_preds.json', 'predict_2020_icra.json')
+    main(nusc, 'output/covernet_preds.json', 'predict_2020_icra.json')
