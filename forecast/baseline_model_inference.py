@@ -11,7 +11,7 @@ from nuscenes import NuScenes
 from nuscenes.eval.prediction.config import load_prediction_config
 from nuscenes.eval.prediction.splits import get_prediction_challenge_split
 from nuscenes.prediction import PredictHelper
-from forecast.physics import ConstantVelocityHeading, PhysicsOracle
+from physics import ConstantVelocityHeading, PhysicsOracle
 
 
 def main(version: str, data_root: str,
