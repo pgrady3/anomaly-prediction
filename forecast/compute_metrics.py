@@ -14,6 +14,7 @@ from nuscenes.eval.prediction.config import PredictionConfig, load_prediction_co
 from nuscenes.eval.prediction.data_classes import Prediction
 from nuscenes.prediction import PredictHelper
 
+from pred_cam_view import get_im_and_box
 
 def compute_metrics(predictions: List[Dict[str, Any]],
                     helper: PredictHelper, config: PredictionConfig) -> Dict[str, Any]:
@@ -27,35 +28,41 @@ def compute_metrics(predictions: List[Dict[str, Any]],
     """
     n_preds = len(predictions)
     containers = {metric.name: np.zeros((n_preds, metric.shape)) for metric in config.metrics}
+    containers['imginfo'] = []
     for i, prediction_str in enumerate(predictions):
         prediction = Prediction.deserialize(prediction_str)
         ground_truth = helper.get_future_for_agent(prediction.instance, prediction.sample,
                                                    config.seconds, in_agent_frame=False)
         for metric in config.metrics:
             containers[metric.name][i] = metric(ground_truth, prediction)
+        token = prediction.instance + '_' + prediction.sample
+        cam_names = [sensor['channel'] for sensor in nusc.sensor if 'CAM' in sensor['channel']]
+        containers['imginfo'].append({})
+        for cam_name in cam_names:
+            containers['imginfo'][i][cam_name] = get_im_and_box(
+                nusc, token, cam_name=cam_name, imgAsName=True)  # impath, box, camera_intrinsics
     aggregations: Dict[str, Dict[str, List[float]]] = defaultdict(dict)
     for metric in config.metrics:
         for agg in metric.aggregators:
             aggregations[metric.name][agg.name] = agg(containers[metric.name])
-    return aggregations
+    return aggregations, containers
 
 
-def main(version: str, data_root: str, submission_path: str,
-         config_name: str = 'predict_2020_icra.json') -> None:
+def main(nusc: NuScenes, submission_path: str, config_name: str = 'predict_2020_icra.json') -> None:
     """
     Computes metrics for a submission stored in submission_path with a given submission_name with the metrics
     specified by the config_name.
-    :param version: nuScenes data set version.
-    :param data_root: Directory storing NuScenes data.
+    :param nusc: nuScenes data set object
     :param submission_path: Directory storing submission.
     :param config_name: Name of config file.
     """
     predictions = json.load(open(submission_path, "r"))
-    nusc = NuScenes(version=version, dataroot=data_root)
     helper = PredictHelper(nusc)
     config = load_prediction_config(helper, config_name)
-    results = compute_metrics(predictions, helper, config)
+    results, resultsfull = compute_metrics(predictions, helper, config)
     json.dump(results, open(submission_path.replace('.json', '_metrics.json'), "w"), indent=2)
+    print('dumping full results...')
+    np.savez(submission_path.replace('.json', '_metricsfull'), **resultsfull)
 
     print('Results from', submission_path)
     print(json.dumps(results, indent=2))
@@ -63,9 +70,13 @@ def main(version: str, data_root: str, submission_path: str,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Perform Inference with baseline models.')
-    parser.add_argument('--version', help='nuScenes version number.', default='v1.0-mini')
+    parser.add_argument('--version', help='nuScenes version number.', default='v1.0-trainval')
     parser.add_argument('--data_root', help='Directory storing NuScenes data.', default=os.environ['NUSCENES'])
-    parser.add_argument('--submission_path', help='Path storing the submission file.', default='output/covernet_preds.json')
+    parser.add_argument('--submission_path', help='Path storing the submission file.', default='output/cv_preds.json')
+    # parser.add_argument('--submission_path', help='Path storing the submission file.', default='output/covernet_preds.json')
     parser.add_argument('--config_name', help='Config file to use.', default='predict_2020_icra.json')
     args = parser.parse_args()
-    main(args.version, args.data_root, args.submission_path, args.config_name)
+    nusc = NuScenes(version=args.version, dataroot=args.data_root)
+    # main(nusc, args.submission_path, args.config_name)
+    # main(nusc, 'output/oracle_preds.json', 'predict_2020_icra.json')
+    main(nusc, 'output/covernet_preds.json', 'predict_2020_icra.json')

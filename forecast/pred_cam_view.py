@@ -21,7 +21,7 @@ from nuscenes.prediction.input_representation.agents import AgentBoxesWithFadedH
 from nuscenes.prediction.input_representation.interface import InputRepresentation
 from nuscenes.prediction.input_representation.combinators import Rasterizer
 
-def get_im_and_box(nusc, token, cam_name="CAM_FRONT"):
+def get_im_and_box(nusc, token, cam_name="CAM_FRONT", imgAsName=False):
     """
     Plots the camera view with bounding box around the agent to be predicted
     :param ax: matplotlib axes object
@@ -38,7 +38,10 @@ def get_im_and_box(nusc, token, cam_name="CAM_FRONT"):
     annotation_instance, *_ = (ann for ann in annotations_in_sample if ann['instance_token'] == instance_token)
     # plot
     data_path, boxes, camera_intrinsic = nusc.get_sample_data(sample_cam_token, selected_anntokens=[annotation_instance['token']])
-    im = Image.open(data_path)
+    if imgAsName:
+        im = data_path
+    else:
+        im = Image.open(data_path)
     if len(boxes) > 0:
         return im, boxes[0], camera_intrinsic
     else:
