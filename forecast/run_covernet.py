@@ -23,6 +23,7 @@ from nuscenes.prediction.input_representation.interface import InputRepresentati
 from nuscenes.prediction.input_representation.combinators import Rasterizer
 import matplotlib.pyplot as plt
 import pickle
+from tqdm import tqdm
 
 
 PATH_TO_EPSILON_8_SET = "covernet/epsilon_8.pkl"
@@ -65,7 +66,7 @@ class CoverNetBaseline:
         img = self.mtp_input_representation.make_input_representation(instance_token_img, sample_token_img)
         image_tensor = torch.Tensor(img).permute(2, 0, 1).unsqueeze(0)
 
-        plt.imshow(img)
+        # plt.imshow(img)
 
         agent_state_vector = torch.Tensor([[self.helper.get_velocity_for_agent(instance_token_img, sample_token_img),
                                             self.helper.get_acceleration_for_agent(instance_token_img, sample_token_img),
@@ -109,10 +110,13 @@ def main(version: str, data_root: str,
     cv_preds = []
     oracle_preds = []
     covernet_preds = []
-    for token in dataset:
+    for idx, token in enumerate(tqdm(dataset)):
+        # if idx > 20:
+        #     break
+
         cv_preds.append(cv_heading(token).serialize())
         oracle_preds.append(oracle(token).serialize())
-        covernet_preds.append(covernet(token).serialize())
+        covernet_preds.append(covernet(token).serialize())    # The slowest one, by far
 
     json.dump(cv_preds, open(os.path.join(output_dir, "cv_preds.json"), "w"))
     json.dump(oracle_preds, open(os.path.join(output_dir, "oracle_preds.json"), "w"))
@@ -122,9 +126,10 @@ def main(version: str, data_root: str,
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Perform Inference with baseline models.')
-    parser.add_argument('--version', help='nuScenes version number.', default='v1.0-mini')
-    parser.add_argument('--data_root', help='Directory storing NuScenes data.', default=os.environ['NUSCENES'])
-    parser.add_argument('--split_name', help='Data split to run inference on.', default='mini_train')
+    parser.add_argument('--version', help='nuScenes version number.', default='v1.0-trainval')
+    # parser.add_argument('--data_root', help='Directory storing NuScenes data.', default=os.environ['NUSCENES'])
+    parser.add_argument('--data_root', help='Directory storing NuScenes data.', default='/home/patrick/datasets/nuscenes/v1.0-trainval')
+    parser.add_argument('--split_name', help='Data split to run inference on.', default='train')
     parser.add_argument('--output_dir', help='Directory to store output files.', default='output')
     parser.add_argument('--config_name', help='Config file to use.', default='predict_2020_icra.json')
 

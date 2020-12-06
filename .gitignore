@@ -1,5 +1,7 @@
 .idea/
-forecast/manual_results.json
+*.json
+*.npz
+*.pkl
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
